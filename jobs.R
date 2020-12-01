@@ -1,7 +1,5 @@
 library(tidyverse)
 
-readr::read_csv("data/aircrafts_-_cessna_172_skyhawk.csv")
-
 c172 <- readr::read_csv(
   "data/flight_logs_-_cessna_172_skyhawk.csv.gz",
   col_types = cols(
@@ -43,27 +41,54 @@ c172 <- readr::read_csv(
 
 # Pay per nm --------------------------------------------------------------
 
-ggplot(c172, aes(y=Income)) + geom_histogram()
+pay <- function(dis, ppl) {
+  (1/ppl)^0.3 * 500 * (atan(dis/25) / atan(1)) * ppl * dis
+}
 
-c172 %>%
-  ggplot(aes(x=Distance, y=Income)) +
-  geom_point() +
-  scale_y_log10()
-
-model <- lm( I(log(Income)) ~ Distance, data=c172)
-summary(model)
+curve(pay(x, ppl=1)/x, from=1, to=400, main="Pay per 1nm per pax",
+      xlab = "Distance [nm]", ylab = "$")
+curve(pay(x, ppl=1)/x/x, from=1, to=400, main="Pay per pax",
+      xlab = "Distance [nm]", ylab="$")
 
 
 # Flight time per distance ------------------------------------------------
 
+fit1 <- gam(as.numeric(ft_time) ~ s(Distance), data=c172)
+tibble(
+  Distance = with(c172, seq(min(Distance), max(Distance), length=100))
+) %>%
+  mutate(
+    p = predict(fit1, .)
+  ) %>%
+  ggplot(aes(x=Distance, y=p)) +
+  geom_line() +
+  geom_rug(aes(x=Distance, y=NULL), data=c172, sides="b")
 
-c172 %>%
-  ggplot(aes(x=ft_nm)) +
-  geom_histogram() +
-  scale_x_log10()
+fit2 <- gam(ft_nm ~ s(Distance), data=c172)
+tibble(
+  Distance = with(c172, seq(min(Distance), max(Distance), length=100))
+) %>%
+  mutate(
+    p = predict(fit2, .)
+  ) %>%
+  ggplot(aes(x=Distance, y=p)) +
+  geom_line() +
+  geom_rug(aes(x=Distance, y=NULL), data=c172, sides="b")
 
-c172 %>%
-  ggplot(aes(y = ft_nm, x = Distance)) +
-  geom_point() +
-  scale_x_log10()
+
+# Pay per hour of flight per distance-----------------------------------------
+
+tibble(
+  Distance = with(c172, seq(min(Distance), 300, length=100))
+) %>%
+  mutate(
+    ft = predict(fit1, .),
+    p = pay(Distance, ppl=1)/Distance / (ft + 15)
+  ) %>%
+  ggplot(aes(x=Distance, y=p)) +
+  geom_line()
   
+
+
+
+
